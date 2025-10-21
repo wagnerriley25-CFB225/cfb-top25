@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * Teams you’ll compare
+ */
+model Team {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  conference String?
+  logoUrl    String?
+  seed       Int?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  // not required, but handy if you ever want backrefs
+  comparisonsAsA Comparison[] @relation("CompTeamA")
+  comparisonsAsB Comparison[] @relation("CompTeamB")
+  comparisonsWin Comparison[] @relation("CompWinner")
+}
+
+/**
+ * One user session per ranking run
+ */
+model Session {
+  id           String       @id
+  startedAt    DateTime     @default(now())
+  completedAt  DateTime?
+  candidateCnt Int          @default(50)
+
+  // Back-relations
+  comparisons  Comparison[]
+  rankState    RankState?
+}
+
+/**
+ * Every A/B pick made during a session
+ */
+model Comparison {
+  id         Int      @id @default(autoincrement())
+
+  // --- link to Session (required) ---
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // --- teams in the matchup (optional relations to Team for convenience) ---
+  teamAId    Int
+  teamA      Team     @relation("CompTeamA", fields: [teamAId], references: [id])
+
+  teamBId    Int
+  teamB      Team     @relation("CompTeamB", fields: [teamBId], references: [id])
+
+  winnerId   Int
+  winner     Team     @relation("CompWinner", fields: [winnerId], references: [id])
+
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+/**
+ * Rolling ordered list & counters for a session
+ */
+model RankState {
+  // Use the session id as our primary key
+  sessionId        String   @id
+  session          Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  orderedList      Int[]    // array of Team IDs in order
+  lockedTopK       Int      @default(0)
+  comparisonsCount Int      @default(0)
+  updatedAt        DateTime @default(now())
+}
